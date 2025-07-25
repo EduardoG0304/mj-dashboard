@@ -1,12 +1,20 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+let supabase;
 
-if (!supabaseUrl || !supabaseKey) {
-  throw new Error(
-    'Supabase URL and Anon Key must be provided in environment variables'
-  )
+try {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (supabaseUrl && supabaseKey) {
+    supabase = createClient(supabaseUrl, supabaseKey);
+  } else {
+    console.warn('Supabase credentials not found - client not initialized');
+    supabase = null;
+  }
+} catch (error) {
+  console.error('Supabase initialization error:', error);
+  supabase = null;
 }
 
-export const supabase = createClient(supabaseUrl, supabaseKey)
+export { supabase };
