@@ -284,7 +284,7 @@ export default function Panel() {
                     value={nombre}
                     onChange={(e) => setNombre(e.target.value)}
                     className="w-full p-3 border border-gray-300 focus:ring-2 focus:ring-black focus:border-black rounded-lg bg-white font-medium placeholder-gray-500 text-gray-900"
-                    placeholder="Ej: Conferencia anual"
+                    placeholder=" "
                     disabled={loading.formulario}
                   />
                 </div>
@@ -312,12 +312,12 @@ export default function Panel() {
                   <FiDollarSign className="absolute right-3 top-3.5 text-gray-700" />
                   <input
                     type="number"
-                    min=""
+                    min="0"
                     step="0.01"
                     value={precioImagen}
                     onChange={(e) => setPrecioImagen(parseFloat(e.target.value) || 0)}
                     className="w-full p-3 border border-gray-300 focus:ring-2 focus:ring-black focus:border-black rounded-lg bg-white font-medium placeholder-gray-500 text-gray-900"
-                    placeholder="0.00"
+                    placeholder=" "
                     disabled={loading.formulario}
                   />
                 </div>
