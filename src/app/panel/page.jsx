@@ -312,7 +312,7 @@ export default function Panel() {
                   <FiDollarSign className="absolute right-3 top-3.5 text-gray-700" />
                   <input
                     type="number"
-                    min="0"
+                    min=""
                     step="0.01"
                     value={precioImagen}
                     onChange={(e) => setPrecioImagen(parseFloat(e.target.value) || 0)}
