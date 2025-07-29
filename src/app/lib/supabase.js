@@ -1,20 +1,12 @@
 import { createClient } from '@supabase/supabase-js'
 
-let supabase;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-try {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (supabaseUrl && supabaseKey) {
-    supabase = createClient(supabaseUrl, supabaseKey);
-  } else {
-    console.warn('Supabase credentials not found - client not initialized');
-    supabase = null;
-  }
-} catch (error) {
-  console.error('Supabase initialization error:', error);
-  supabase = null;
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error(
+    'Missing Supabase URL or Anon Key. Check your environment variables.'
+  )
 }
 
-export { supabase };
+export const supabase = createClient(supabaseUrl, supabaseKey)

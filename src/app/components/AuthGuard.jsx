@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 // Lista de usuarios permitidos
 const ALLOWED_USERS = [
   'renegarciagarcia11@gmail.com',
-  'admin2@tudominio.com'
+  'mjfotografiasport@gmail.com'
 ]
 
 export default function AuthGuard({ children }) {

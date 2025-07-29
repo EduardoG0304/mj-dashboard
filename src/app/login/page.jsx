@@ -7,7 +7,7 @@ import { motion } from 'framer-motion'
 
 const ALLOWED_USERS = [
   'renegarciagarcia11@gmail.com',
-  'admin2@tudominio.com'
+  'mjfotografiasport@gmail.com'
 ]
 
 // Componente de fondo animado con estrellas
