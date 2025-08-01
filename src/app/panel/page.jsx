@@ -25,6 +25,69 @@ export default function Panel() {
   const router = useRouter()
   const portadaInputRef = useRef(null)
   const originalInputRef = useRef(null)
+  const [dragActivePortada, setDragActivePortada] = useState({})
+  const [dragActiveOriginal, setDragActiveOriginal] = useState({})
+
+  // Componente para mostrar imágenes con manejo de errores
+  const ImagePreview = ({ src, alt, className }) => {
+    const [error, setError] = useState(false)
+    
+    if (error || !src) {
+      return (
+        <div className={`${className} bg-gray-200 flex items-center justify-center text-gray-500`}>
+          <FiImage className="text-2xl" />
+          <span className="sr-only">Imagen no disponible</span>
+        </div>
+      )
+    }
+
+    return (
+      <img
+        src={src}
+        alt={alt}
+        className={className}
+        onLoad={() => console.log('Imagen cargada correctamente')}
+        onError={() => {
+          console.log('Error al cargar la imagen')
+          setError(true)
+        }}
+      />
+    )
+  }
+
+  // Función segura para crear URLs de objeto Blob
+  const createSafeBlobUrl = (file) => {
+    try {
+      if (!file) return null
+      return URL.createObjectURL(file)
+    } catch (err) {
+      console.error('Error al crear URL de blob:', err)
+      return null
+    }
+  }
+
+  // Limpiar URLs de objeto Blob
+  useEffect(() => {
+    const currentFotos = [...fotosPorSubir]
+    return () => {
+      currentFotos.forEach(foto => {
+        if (foto?.portada?.preview) {
+          try {
+            URL.revokeObjectURL(foto.portada.preview)
+          } catch (err) {
+            console.error('Error al revocar URL de portada:', err)
+          }
+        }
+        if (foto?.original?.preview) {
+          try {
+            URL.revokeObjectURL(foto.original.preview)
+          } catch (err) {
+            console.error('Error al revocar URL de original:', err)
+          }
+        }
+      })
+    }
+  }, [fotosPorSubir])
 
   useEffect(() => {
     const cargarDatos = async () => {
@@ -51,14 +114,45 @@ export default function Panel() {
     cargarDatos()
   }, [])
 
-  useEffect(() => {
-    return () => {
-      fotosPorSubir.forEach(foto => {
-        if (foto.portada?.preview) URL.revokeObjectURL(foto.portada.preview)
-        if (foto.original?.preview) URL.revokeObjectURL(foto.original.preview)
-      })
+  // Manejar drag and drop
+  const handleDrag = (e, type, index) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (type === 'portada') {
+      setDragActivePortada(prev => ({ ...prev, [index]: true }))
+    } else {
+      setDragActiveOriginal(prev => ({ ...prev, [index]: true }))
     }
-  }, [fotosPorSubir])
+  }
+
+  const handleDragLeave = (e, type, index) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (type === 'portada') {
+      setDragActivePortada(prev => ({ ...prev, [index]: false }))
+    } else {
+      setDragActiveOriginal(prev => ({ ...prev, [index]: false }))
+    }
+  }
+
+  const handleDrop = (e, type, index) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (type === 'portada') {
+      setDragActivePortada(prev => ({ ...prev, [index]: false }))
+    } else {
+      setDragActiveOriginal(prev => ({ ...prev, [index]: false }))
+    }
+    
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      const file = e.dataTransfer.files[0]
+      if (type === 'portada') {
+        handlePortadaChange({ target: { files: [file] } }, index)
+      } else {
+        handleOriginalChange({ target: { files: [file] } }, index)
+      }
+    }
+  }
 
   const handlePortadaChange = (e, index) => {
     try {
@@ -70,13 +164,20 @@ export default function Panel() {
         return
       }
 
+      const previewUrl = createSafeBlobUrl(file)
+      if (!previewUrl) {
+        setError('No se pudo cargar la imagen de portada')
+        return
+      }
+
       const imageWithPreview = {
         file,
-        preview: URL.createObjectURL(file),
+        preview: previewUrl,
         name: file.name,
         size: file.size > 1024000
           ? `${(file.size / 1024000).toFixed(1)} MB`
-          : `${(file.size / 1024).toFixed(1)} KB`
+          : `${(file.size / 1024).toFixed(1)} KB`,
+        type: file.type
       }
 
       setFotosPorSubir(prev => {
@@ -101,13 +202,20 @@ export default function Panel() {
         return
       }
 
+      const previewUrl = createSafeBlobUrl(file)
+      if (!previewUrl) {
+        setError('No se pudo cargar la imagen original')
+        return
+      }
+
       const imageWithPreview = {
         file,
-        preview: URL.createObjectURL(file),
+        preview: previewUrl,
         name: file.name,
         size: file.size > 1024000
           ? `${(file.size / 1024000).toFixed(1)} MB`
-          : `${(file.size / 1024).toFixed(1)} KB`
+          : `${(file.size / 1024).toFixed(1)} KB`,
+        type: file.type
       }
 
       setFotosPorSubir(prev => {
@@ -126,8 +234,20 @@ export default function Panel() {
     setFotosPorSubir(prev => {
       const nuevasFotos = [...prev]
       const foto = nuevasFotos[index]
-      if (foto.portada?.preview) URL.revokeObjectURL(foto.portada.preview)
-      if (foto.original?.preview) URL.revokeObjectURL(foto.original.preview)
+      if (foto?.portada?.preview) {
+        try {
+          URL.revokeObjectURL(foto.portada.preview)
+        } catch (err) {
+          console.error('Error al revocar URL al eliminar foto:', err)
+        }
+      }
+      if (foto?.original?.preview) {
+        try {
+          URL.revokeObjectURL(foto.original.preview)
+        } catch (err) {
+          console.error('Error al revocar URL al eliminar foto:', err)
+        }
+      }
       nuevasFotos.splice(index, 1)
       return nuevasFotos
     })
@@ -426,10 +546,10 @@ export default function Panel() {
                 <button
                   onClick={agregarNuevoParDeFotos}
                   disabled={loading.formulario || loading.agregandoFotos}
-                  className="flex items-center gap-2 text-sm bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-lg transition-colors"
+                  className="flex items-center gap-2 text-sm bg-black-100 hover:bg-black-200 px-3 py-1.5 rounded-lg transition-colors"
                 >
                   <FiPlus />
-                  <span>Nuevo par</span>
+                  <span>Nuevo</span>
                 </button>
               </div>
 
@@ -469,33 +589,41 @@ export default function Panel() {
                             Foto de Portada (con marca de agua)
                           </label>
                           {foto.portada ? (
-                            <div className="relative aspect-square w-full rounded-lg overflow-hidden shadow-sm border border-gray-300">
-                              <img
+                            <div className="relative w-full rounded-lg overflow-hidden shadow-sm border border-gray-300 min-h-[200px] flex items-center justify-center bg-gray-100">
+                              <ImagePreview
                                 src={foto.portada.preview}
                                 alt="Preview portada"
-                                className="h-full w-full object-cover"
+                                className="max-h-full max-w-full object-contain"
                               />
                               <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-2">
                                 <p className="text-xs text-white truncate font-medium">{foto.portada.name}</p>
-                                <p className="text-xs text-gray-300">{foto.portada.size}</p>
+                                <p className="text-xs text-gray-300">{foto.portada.size} • {foto.portada.type.split('/')[1].toUpperCase()}</p>
                               </div>
                             </div>
                           ) : (
-                            <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-400 hover:border-black hover:bg-gray-50 cursor-pointer transition-all rounded-lg">
-                              <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                                <FiImage className="mb-2 text-gray-700 text-2xl" />
-                                <p className="text-sm text-gray-900 font-medium">Seleccionar portada</p>
-                                <p className="text-xs text-gray-600 mt-1">JPEG, PNG, WEBP</p>
-                              </div>
-                              <input
-                                type="file"
-                                onChange={(e) => handlePortadaChange(e, index)}
-                                className="hidden"
-                                accept="image/jpeg, image/png, image/webp"
-                                disabled={loading.formulario || loading.agregandoFotos}
-                                ref={portadaInputRef}
-                              />
-                            </label>
+                            <div 
+                              className={`relative border-2 border-dashed rounded-lg transition-all ${dragActivePortada[index] ? 'border-black bg-gray-100' : 'border-gray-400 hover:border-black hover:bg-gray-50'}`}
+                              onDragEnter={(e) => handleDrag(e, 'portada', index)}
+                              onDragLeave={(e) => handleDragLeave(e, 'portada', index)}
+                              onDragOver={(e) => handleDrag(e, 'portada', index)}
+                              onDrop={(e) => handleDrop(e, 'portada', index)}
+                            >
+                              <label className="flex flex-col items-center justify-center w-full h-32 cursor-pointer">
+                                <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                  <FiImage className="mb-2 text-gray-700 text-2xl" />
+                                  <p className="text-sm text-gray-900 font-medium">Arrastra o selecciona la portada</p>
+                                  <p className="text-xs text-gray-600 mt-1">JPEG, PNG, WEBP</p>
+                                </div>
+                                <input
+                                  type="file"
+                                  onChange={(e) => handlePortadaChange(e, index)}
+                                  className="hidden"
+                                  accept="image/jpeg, image/png, image/webp"
+                                  disabled={loading.formulario || loading.agregandoFotos}
+                                  ref={portadaInputRef}
+                                />
+                              </label>
+                            </div>
                           )}
                         </div>
 
@@ -504,33 +632,41 @@ export default function Panel() {
                             Foto Original (sin marca de agua)
                           </label>
                           {foto.original ? (
-                            <div className="relative aspect-square w-full rounded-lg overflow-hidden shadow-sm border border-gray-300">
-                              <img
+                            <div className="relative w-full rounded-lg overflow-hidden shadow-sm border border-gray-300 min-h-[200px] flex items-center justify-center bg-gray-100">
+                              <ImagePreview
                                 src={foto.original.preview}
                                 alt="Preview original"
-                                className="h-full w-full object-cover"
+                                className="max-h-full max-w-full object-contain"
                               />
                               <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-2">
                                 <p className="text-xs text-white truncate font-medium">{foto.original.name}</p>
-                                <p className="text-xs text-gray-300">{foto.original.size}</p>
+                                <p className="text-xs text-gray-300">{foto.original.size} • {foto.original.type.split('/')[1].toUpperCase()}</p>
                               </div>
                             </div>
                           ) : (
-                            <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-400 hover:border-black hover:bg-gray-50 cursor-pointer transition-all rounded-lg">
-                              <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                                <FiImage className="mb-2 text-gray-700 text-2xl" />
-                                <p className="text-sm text-gray-900 font-medium">Seleccionar original</p>
-                                <p className="text-xs text-gray-600 mt-1">JPEG, PNG, WEBP</p>
-                              </div>
-                              <input
-                                type="file"
-                                onChange={(e) => handleOriginalChange(e, index)}
-                                className="hidden"
-                                accept="image/jpeg, image/png, image/webp"
-                                disabled={loading.formulario || loading.agregandoFotos}
-                                ref={originalInputRef}
-                              />
-                            </label>
+                            <div 
+                              className={`relative border-2 border-dashed rounded-lg transition-all ${dragActiveOriginal[index] ? 'border-black bg-gray-100' : 'border-gray-400 hover:border-black hover:bg-gray-50'}`}
+                              onDragEnter={(e) => handleDrag(e, 'original', index)}
+                              onDragLeave={(e) => handleDragLeave(e, 'original', index)}
+                              onDragOver={(e) => handleDrag(e, 'original', index)}
+                              onDrop={(e) => handleDrop(e, 'original', index)}
+                            >
+                              <label className="flex flex-col items-center justify-center w-full h-32 cursor-pointer">
+                                <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                  <FiImage className="mb-2 text-gray-700 text-2xl" />
+                                  <p className="text-sm text-gray-900 font-medium">Arrastra o selecciona la original</p>
+                                  <p className="text-xs text-gray-600 mt-1">JPEG, PNG, WEBP</p>
+                                </div>
+                                <input
+                                  type="file"
+                                  onChange={(e) => handleOriginalChange(e, index)}
+                                  className="hidden"
+                                  accept="image/jpeg, image/png, image/webp"
+                                  disabled={loading.formulario || loading.agregandoFotos}
+                                  ref={originalInputRef}
+                                />
+                              </label>
+                            </div>
                           )}
                         </div>
                       </div>
@@ -699,14 +835,10 @@ export default function Panel() {
                           <div className="flex gap-2 overflow-x-auto py-1">
                             {evento.fotos.map((foto, index) => (
                               <div key={foto.id} className="relative flex-shrink-0 group w-20 h-20">
-                                <img
+                                <ImagePreview
                                   src={foto.url}
                                   alt={`Imagen ${index + 1} del evento`}
                                   className="h-full w-full object-cover rounded-lg shadow-sm border border-gray-300"
-                                  onError={(e) => {
-                                    e.target.onerror = null
-                                    e.target.src = '/images/placeholder-image.jpg'
-                                  }}
                                 />
                                 <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-1 text-center">
                                   <p className="text-[10px] font-bold text-white">${foto.precio?.toFixed(2) || '0.00'}</p>
