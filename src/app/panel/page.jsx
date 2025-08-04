@@ -23,10 +23,13 @@ export default function Panel() {
   const [progresoSubida, setProgresoSubida] = useState(0)
   const [fotosExpandidas, setFotosExpandidas] = useState({})
   const router = useRouter()
-  const portadaInputRef = useRef(null)
-  const originalInputRef = useRef(null)
-  const [dragActivePortada, setDragActivePortada] = useState({})
-  const [dragActiveOriginal, setDragActiveOriginal] = useState({})
+  const fileInputRef = useRef(null)
+  const [dragActive, setDragActive] = useState(false)
+  const [portadaEvento, setPortadaEvento] = useState(null)
+  const [dragActivePortadaEvento, setDragActivePortadaEvento] = useState(false)
+  const [marcaDeAgua, setMarcaDeAgua] = useState(null)
+  const [opacidadMarcaAgua, setOpacidadMarcaAgua] = useState(50) // 50% de opacidad por defecto
+  const [posicionMarcaAgua, setPosicionMarcaAgua] = useState('centro') // Posición por defecto
 
   // Componente para mostrar imágenes con manejo de errores
   const ImagePreview = ({ src, alt, className }) => {
@@ -69,25 +72,34 @@ export default function Panel() {
   // Limpiar URLs de objeto Blob
   useEffect(() => {
     const currentFotos = [...fotosPorSubir]
+    const currentPortadaEvento = portadaEvento
+    const currentMarcaDeAgua = marcaDeAgua
     return () => {
       currentFotos.forEach(foto => {
-        if (foto?.portada?.preview) {
+        if (foto?.preview) {
           try {
-            URL.revokeObjectURL(foto.portada.preview)
+            URL.revokeObjectURL(foto.preview)
           } catch (err) {
-            console.error('Error al revocar URL de portada:', err)
-          }
-        }
-        if (foto?.original?.preview) {
-          try {
-            URL.revokeObjectURL(foto.original.preview)
-          } catch (err) {
-            console.error('Error al revocar URL de original:', err)
+            console.error('Error al revocar URL al eliminar foto:', err)
           }
         }
       })
+      if (currentPortadaEvento?.preview) {
+        try {
+          URL.revokeObjectURL(currentPortadaEvento.preview)
+        } catch (err) {
+          console.error('Error al revocar URL de portada de evento:', err)
+        }
+      }
+      if (currentMarcaDeAgua?.preview) {
+        try {
+          URL.revokeObjectURL(currentMarcaDeAgua.preview)
+        } catch (err) {
+          console.error('Error al revocar URL de marca de agua:', err)
+        }
+      }
     }
-  }, [fotosPorSubir])
+  }, [fotosPorSubir, portadaEvento, marcaDeAgua])
 
   useEffect(() => {
     const cargarDatos = async () => {
@@ -96,7 +108,7 @@ export default function Panel() {
           .from('eventos')
           .select(`
             *,
-            fotos: fotos(id, url, precio, ruta_portada, ruta_original)
+            fotos: fotos(id, url, precio, nombre, ruta_original)
           `)
           .order('created_at', { ascending: false })
 
@@ -114,47 +126,76 @@ export default function Panel() {
     cargarDatos()
   }, [])
 
-  // Manejar drag and drop
-  const handleDrag = (e, type, index) => {
+  // Manejar drag and drop para fotos
+  const handleDrag = (e) => {
     e.preventDefault()
     e.stopPropagation()
-    if (type === 'portada') {
-      setDragActivePortada(prev => ({ ...prev, [index]: true }))
-    } else {
-      setDragActiveOriginal(prev => ({ ...prev, [index]: true }))
+    setDragActive(true)
+  }
+
+  const handleDragLeave = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragActive(false)
+  }
+
+  const handleDrop = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragActive(false)
+    
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleFileSelect(e.dataTransfer.files)
     }
   }
 
-  const handleDragLeave = (e, type, index) => {
+  // Manejar drag and drop para portada de evento
+  const handleDragPortadaEvento = (e) => {
     e.preventDefault()
     e.stopPropagation()
-    if (type === 'portada') {
-      setDragActivePortada(prev => ({ ...prev, [index]: false }))
-    } else {
-      setDragActiveOriginal(prev => ({ ...prev, [index]: false }))
-    }
+    setDragActivePortadaEvento(true)
   }
 
-  const handleDrop = (e, type, index) => {
+  const handleDragLeavePortadaEvento = (e) => {
     e.preventDefault()
     e.stopPropagation()
-    if (type === 'portada') {
-      setDragActivePortada(prev => ({ ...prev, [index]: false }))
-    } else {
-      setDragActiveOriginal(prev => ({ ...prev, [index]: false }))
-    }
+    setDragActivePortadaEvento(false)
+  }
+
+  const handleDropPortadaEvento = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragActivePortadaEvento(false)
     
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const file = e.dataTransfer.files[0]
-      if (type === 'portada') {
-        handlePortadaChange({ target: { files: [file] } }, index)
-      } else {
-        handleOriginalChange({ target: { files: [file] } }, index)
-      }
+      handlePortadaEventoChange({ target: { files: e.dataTransfer.files } })
     }
   }
 
-  const handlePortadaChange = (e, index) => {
+  // Manejar drag and drop para marca de agua
+  const handleDragMarcaDeAgua = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragActive(true)
+  }
+
+  const handleDragLeaveMarcaDeAgua = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragActive(false)
+  }
+
+  const handleDropMarcaDeAgua = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragActive(false)
+    
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleMarcaDeAguaChange({ target: { files: e.dataTransfer.files } })
+    }
+  }
+
+  const handlePortadaEventoChange = (e) => {
     try {
       const file = e.target.files?.[0]
       if (!file) return
@@ -166,7 +207,7 @@ export default function Panel() {
 
       const previewUrl = createSafeBlobUrl(file)
       if (!previewUrl) {
-        setError('No se pudo cargar la imagen de portada')
+        setError('No se pudo cargar la imagen de portada del evento')
         return
       }
 
@@ -180,19 +221,14 @@ export default function Panel() {
         type: file.type
       }
 
-      setFotosPorSubir(prev => {
-        const nuevasFotos = [...prev]
-        nuevasFotos[index].portada = imageWithPreview
-        return nuevasFotos
-      })
-      
+      setPortadaEvento(imageWithPreview)
       setError('')
     } catch (err) {
-      setError('Error al cargar la portada: ' + err.message)
+      setError('Error al cargar la portada del evento: ' + err.message)
     }
   }
 
-  const handleOriginalChange = (e, index) => {
+  const handleMarcaDeAguaChange = (e) => {
     try {
       const file = e.target.files?.[0]
       if (!file) return
@@ -204,7 +240,7 @@ export default function Panel() {
 
       const previewUrl = createSafeBlobUrl(file)
       if (!previewUrl) {
-        setError('No se pudo cargar la imagen original')
+        setError('No se pudo cargar la marca de agua')
         return
       }
 
@@ -218,15 +254,50 @@ export default function Panel() {
         type: file.type
       }
 
-      setFotosPorSubir(prev => {
-        const nuevasFotos = [...prev]
-        nuevasFotos[index].original = imageWithPreview
-        return nuevasFotos
-      })
-      
+      setMarcaDeAgua(imageWithPreview)
       setError('')
     } catch (err) {
-      setError('Error al cargar la imagen original: ' + err.message)
+      setError('Error al cargar la marca de agua: ' + err.message)
+    }
+  }
+
+  const handleFileSelect = (files) => {
+    try {
+      if (!files || files.length === 0) return
+
+      const nuevasFotos = []
+      
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        
+        if (!file.type.match('image.*')) {
+          setError(`El archivo "${file.name}" no es una imagen válida`)
+          continue
+        }
+
+        const previewUrl = createSafeBlobUrl(file)
+        if (!previewUrl) {
+          setError(`No se pudo cargar la imagen "${file.name}"`)
+          continue
+        }
+
+        nuevasFotos.push({
+          file,
+          preview: previewUrl,
+          name: file.name,
+          size: file.size > 1024000
+            ? `${(file.size / 1024000).toFixed(1)} MB`
+            : `${(file.size / 1024).toFixed(1)} KB`,
+          type: file.type
+        })
+      }
+
+      if (nuevasFotos.length > 0) {
+        setFotosPorSubir(prev => [...prev, ...nuevasFotos])
+        setError('')
+      }
+    } catch (err) {
+      setError('Error al cargar las imágenes: ' + err.message)
     }
   }
 
@@ -234,16 +305,9 @@ export default function Panel() {
     setFotosPorSubir(prev => {
       const nuevasFotos = [...prev]
       const foto = nuevasFotos[index]
-      if (foto?.portada?.preview) {
+      if (foto?.preview) {
         try {
-          URL.revokeObjectURL(foto.portada.preview)
-        } catch (err) {
-          console.error('Error al revocar URL al eliminar foto:', err)
-        }
-      }
-      if (foto?.original?.preview) {
-        try {
-          URL.revokeObjectURL(foto.original.preview)
+          URL.revokeObjectURL(foto.preview)
         } catch (err) {
           console.error('Error al revocar URL al eliminar foto:', err)
         }
@@ -253,8 +317,51 @@ export default function Panel() {
     })
   }
 
-  const agregarNuevoParDeFotos = () => {
-    setFotosPorSubir(prev => [...prev, { portada: null, original: null }])
+  const removePortadaEvento = () => {
+    if (portadaEvento?.preview) {
+      try {
+        URL.revokeObjectURL(portadaEvento.preview)
+      } catch (err) {
+        console.error('Error al revocar URL al eliminar portada de evento:', err)
+      }
+    }
+    setPortadaEvento(null)
+  }
+
+  const removeMarcaDeAgua = () => {
+    if (marcaDeAgua?.preview) {
+      try {
+        URL.revokeObjectURL(marcaDeAgua.preview)
+      } catch (err) {
+        console.error('Error al revocar URL al eliminar marca de agua:', err)
+      }
+    }
+    setMarcaDeAgua(null)
+  }
+
+  const subirPortadaEvento = async (eventoId) => {
+    if (!portadaEvento) return null
+
+    try {
+      const timestamp = Date.now()
+      const nombreArchivo = `portada-${timestamp}-${portadaEvento.file.name.replace(/\s+/g, '-')}`
+      const ruta = `eventos/${eventoId}/${nombreArchivo}`
+
+      const { error: uploadError } = await supabase.storage
+        .from('fotos_eventos')
+        .upload(ruta, portadaEvento.file)
+
+      if (uploadError) throw uploadError
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('fotos_eventos')
+        .getPublicUrl(ruta)
+
+      return publicUrl
+    } catch (err) {
+      console.error('Error al subir portada del evento:', err)
+      return null
+    }
   }
 
   const crearEvento = async () => {
@@ -264,13 +371,12 @@ export default function Panel() {
     }
 
     if (fotosPorSubir.length === 0) {
-      setError('Debes subir al menos una foto (portada + original)')
+      setError('Debes subir al menos una foto')
       return
     }
 
-    const fotosIncompletas = fotosPorSubir.some(foto => !foto.portada || !foto.original)
-    if (fotosIncompletas) {
-      setError('Todas las fotos deben tener tanto la versión de portada como la original')
+    if (!marcaDeAgua) {
+      setError('Debes subir una marca de agua')
       return
     }
 
@@ -280,12 +386,16 @@ export default function Panel() {
     try {
       const { data: { user } } = await supabase.auth.getUser()
 
+      // Subir portada del evento primero si existe
+      const portadaUrl = portadaEvento ? await subirPortadaEvento('temp') : null
+
       const { data: evento, error: eventoError } = await supabase
         .from('eventos')
         .insert([{
           nombre,
           fecha,
-          creado_por: user.id
+          creado_por: user.id,
+          portada_url: portadaUrl
         }])
         .select()
         .single()
@@ -297,11 +407,40 @@ export default function Panel() {
       setLoading(prev => ({ ...prev, procesandoImagenes: true, subiendoImagenes: true }))
       await subirTodasLasFotos(evento.id)
 
+      // Si se subió una portada temporal, moverla a la carpeta correcta
+      if (portadaEvento && portadaUrl) {
+        const nombreArchivo = portadaUrl.split('/').pop()
+        const rutaOriginal = `eventos/temp/${nombreArchivo}`
+        const rutaNueva = `eventos/${evento.id}/${nombreArchivo}`
+
+        // Copiar el archivo a la nueva ubicación
+        const { error: copyError } = await supabase.storage
+          .from('fotos_eventos')
+          .copy(rutaOriginal, rutaNueva)
+
+        if (!copyError) {
+          // Eliminar el archivo temporal
+          await supabase.storage
+            .from('fotos_eventos')
+            .remove([rutaOriginal])
+
+          // Actualizar la URL de la portada en la base de datos
+          const { data: { publicUrl } } = supabase.storage
+            .from('fotos_eventos')
+            .getPublicUrl(rutaNueva)
+
+          await supabase
+            .from('eventos')
+            .update({ portada_url: publicUrl })
+            .eq('id', evento.id)
+        }
+      }
+
       const { data: eventoActualizado, error: fetchError } = await supabase
         .from('eventos')
         .select(`
           *,
-          fotos: fotos(id, url, precio, ruta_portada, ruta_original)
+          fotos: fotos(id, url, precio, nombre, ruta_original)
         `)
         .eq('id', evento.id)
         .single()
@@ -314,6 +453,7 @@ export default function Panel() {
       setFecha('')
       setPrecioImagen(0)
       setFotosPorSubir([])
+      setPortadaEvento(null)
       setEventoActual(null)
 
     } catch (err) {
@@ -326,13 +466,12 @@ export default function Panel() {
 
   const agregarFotosAEvento = async (eventoId) => {
     if (fotosPorSubir.length === 0) {
-      setError('Debes subir al menos una foto (portada + original)')
+      setError('Debes subir al menos una foto')
       return
     }
 
-    const fotosIncompletas = fotosPorSubir.some(foto => !foto.portada || !foto.original)
-    if (fotosIncompletas) {
-      setError('Todas las fotos deben tener tanto la versión de portada como la original')
+    if (!marcaDeAgua) {
+      setError('Debes subir una marca de agua')
       return
     }
 
@@ -346,7 +485,7 @@ export default function Panel() {
         .from('eventos')
         .select(`
           *,
-          fotos: fotos(id, url, precio, ruta_portada, ruta_original)
+          fotos: fotos(id, url, precio, nombre, ruta_original)
         `)
         .order('created_at', { ascending: false })
 
@@ -365,9 +504,77 @@ export default function Panel() {
 
   const agregarMarcaDeAgua = async (imageFile) => {
     return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve(imageFile)
-      }, 200)
+      const canvas = document.createElement('canvas')
+      const ctx = canvas.getContext('2d')
+      const img = new Image()
+      const marcaImg = new Image()
+      
+      img.onload = () => {
+        // Configurar el canvas con las dimensiones de la imagen original
+        canvas.width = img.width
+        canvas.height = img.height
+        
+        // Dibujar la imagen original
+        ctx.drawImage(img, 0, 0, img.width, img.height)
+        
+        // Cargar la marca de agua
+        marcaImg.onload = () => {
+          // Calcular el tamaño de la marca de agua (30% del ancho de la imagen)
+          const marcaWidth = img.width * 0.3
+          const marcaHeight = (marcaImg.height / marcaImg.width) * marcaWidth
+          
+          // Calcular la posición según la configuración
+          let x, y
+          
+          switch(posicionMarcaAgua) {
+            case 'esquina-superior-izquierda':
+              x = 20
+              y = 20
+              break
+            case 'esquina-superior-derecha':
+              x = img.width - marcaWidth - 20
+              y = 20
+              break
+            case 'esquina-inferior-izquierda':
+              x = 20
+              y = img.height - marcaHeight - 20
+              break
+            case 'esquina-inferior-derecha':
+              x = img.width - marcaWidth - 20
+              y = img.height - marcaHeight - 20
+              break
+            case 'centro':
+              x = (img.width - marcaWidth) / 2
+              y = (img.height - marcaHeight) / 2
+              break
+            default:
+              x = (img.width - marcaWidth) / 2
+              y = (img.height - marcaHeight) / 2
+          }
+          
+          // Aplicar opacidad
+          ctx.globalAlpha = opacidadMarcaAgua / 100
+          
+          // Dibujar la marca de agua
+          ctx.drawImage(marcaImg, x, y, marcaWidth, marcaHeight)
+          
+          // Restaurar opacidad
+          ctx.globalAlpha = 1.0
+          
+          // Convertir el canvas a Blob
+          canvas.toBlob((blob) => {
+            const watermarkedFile = new File([blob], imageFile.name, {
+              type: imageFile.type,
+              lastModified: Date.now()
+            })
+            resolve(watermarkedFile)
+          }, imageFile.type)
+        }
+        
+        marcaImg.src = createSafeBlobUrl(marcaDeAgua.file)
+      }
+      
+      img.src = createSafeBlobUrl(imageFile)
     })
   }
 
@@ -378,37 +585,29 @@ export default function Panel() {
       
       for (const [index, foto] of fotosPorSubir.entries()) {
         const timestamp = Date.now()
-        const nombrePortada = `${timestamp}-${foto.portada.file.name.replace(/\s+/g, '-')}`
-        const nombreOriginal = `${timestamp}-${foto.original.file.name.replace(/\s+/g, '-')}`
+        const nombreArchivo = `${timestamp}-${foto.file.name.replace(/\s+/g, '-')}`
+        const rutaOriginal = `eventos/${eventoId}/${nombreArchivo}`
+
+        // Aplicar marca de agua a la imagen
+        const imagenConMarca = await agregarMarcaDeAgua(foto.file)
         
-        const rutaPortada = `eventos/${eventoId}/${nombrePortada}`
-        const rutaOriginal = `eventos/${eventoId}/${nombreOriginal}`
-
-        const imagenConMarca = await agregarMarcaDeAgua(foto.portada.file)
-        const { error: uploadPortadaError } = await supabase.storage
+        const { error: uploadError } = await supabase.storage
           .from('fotos_eventos')
-          .upload(rutaPortada, imagenConMarca)
+          .upload(rutaOriginal, imagenConMarca)
 
-        if (uploadPortadaError) throw uploadPortadaError
+        if (uploadError) throw uploadError
 
-        const { error: uploadOriginalError } = await supabase.storage
+        const { data: { publicUrl } } = supabase.storage
           .from('fotos_eventos')
-          .upload(rutaOriginal, foto.original.file)
-
-        if (uploadOriginalError) throw uploadOriginalError
-
-        const { data: { publicUrl: urlPortada } } = supabase.storage
-          .from('fotos_eventos')
-          .getPublicUrl(rutaPortada)
+          .getPublicUrl(rutaOriginal)
 
         const { error: dbError } = await supabase
           .from('fotos')
           .insert({
             evento_id: eventoId,
-            url: urlPortada,
+            url: publicUrl,
             precio: precioImagen,
-            nombre: nombrePortada,
-            ruta_portada: rutaPortada,
+            nombre: nombreArchivo,
             ruta_original: rutaOriginal
           })
 
@@ -512,6 +711,139 @@ export default function Panel() {
               </div>
             )}
 
+            {!eventoActual && (
+              <div className="mb-6">
+                <label className="block mb-2 text-sm font-medium text-gray-900">Portada del Evento</label>
+                {portadaEvento ? (
+                  <div className="relative w-full rounded-lg overflow-hidden shadow-sm border border-gray-300 min-h-[200px] flex items-center justify-center bg-gray-100">
+                    <ImagePreview
+                      src={portadaEvento.preview}
+                      alt="Preview portada del evento"
+                      className="max-h-full max-w-full object-contain"
+                    />
+                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-2">
+                      <p className="text-xs text-white truncate font-medium">{portadaEvento.name}</p>
+                      <p className="text-xs text-gray-300">{portadaEvento.size} • {portadaEvento.type.split('/')[1].toUpperCase()}</p>
+                    </div>
+                    <button
+                      onClick={removePortadaEvento}
+                      className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white p-1 rounded-full"
+                      disabled={loading.formulario}
+                    >
+                      <FiX size={16} />
+                    </button>
+                  </div>
+                ) : (
+                  <div 
+                    className={`relative border-2 border-dashed rounded-lg transition-all ${dragActivePortadaEvento ? 'border-black bg-gray-100' : 'border-gray-400 hover:border-black hover:bg-gray-50'}`}
+                    onDragEnter={handleDragPortadaEvento}
+                    onDragLeave={handleDragLeavePortadaEvento}
+                    onDragOver={handleDragPortadaEvento}
+                    onDrop={handleDropPortadaEvento}
+                  >
+                    <label className="flex flex-col items-center justify-center w-full h-32 cursor-pointer">
+                      <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                        <FiImage className="mb-2 text-gray-700 text-2xl" />
+                        <p className="text-sm text-gray-900 font-medium">Arrastra o selecciona la portada del evento</p>
+                        <p className="text-xs text-gray-600 mt-1">JPEG, PNG, WEBP</p>
+                      </div>
+                      <input
+                        type="file"
+                        onChange={handlePortadaEventoChange}
+                        className="hidden"
+                        accept="image/jpeg, image/png, image/webp"
+                        disabled={loading.formulario}
+                      />
+                    </label>
+                  </div>
+                )}
+                <p className="mt-1 text-xs text-gray-500">Esta imagen se mostrará como portada principal del evento (opcional)</p>
+              </div>
+            )}
+
+            <div className="mb-6">
+              <label className="block mb-2 text-sm font-medium text-gray-900">Marca de Agua *</label>
+              {marcaDeAgua ? (
+                <div className="relative w-full rounded-lg overflow-hidden shadow-sm border border-gray-300 min-h-[200px] flex items-center justify-center bg-gray-100">
+                  <ImagePreview
+                    src={marcaDeAgua.preview}
+                    alt="Preview marca de agua"
+                    className="max-h-full max-w-full object-contain"
+                  />
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-2">
+                    <p className="text-xs text-white truncate font-medium">{marcaDeAgua.name}</p>
+                    <p className="text-xs text-gray-300">{marcaDeAgua.size} • {marcaDeAgua.type.split('/')[1].toUpperCase()}</p>
+                  </div>
+                  <button
+                    onClick={removeMarcaDeAgua}
+                    className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white p-1 rounded-full"
+                    disabled={loading.formulario || loading.agregandoFotos}
+                  >
+                    <FiX size={16} />
+                  </button>
+                </div>
+              ) : (
+                <div 
+                  className={`relative border-2 border-dashed rounded-lg transition-all ${dragActive ? 'border-black bg-gray-100' : 'border-gray-400 hover:border-black hover:bg-gray-50'}`}
+                  onDragEnter={handleDragMarcaDeAgua}
+                  onDragLeave={handleDragLeaveMarcaDeAgua}
+                  onDragOver={handleDragMarcaDeAgua}
+                  onDrop={handleDropMarcaDeAgua}
+                >
+                  <label className="flex flex-col items-center justify-center w-full h-32 cursor-pointer">
+                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                      <FiImage className="mb-2 text-gray-700 text-2xl" />
+                      <p className="text-sm text-gray-900 font-medium">Arrastra o selecciona la marca de agua</p>
+                      <p className="text-xs text-gray-600 mt-1">JPEG, PNG, WEBP (transparente)</p>
+                    </div>
+                    <input
+                      type="file"
+                      onChange={handleMarcaDeAguaChange}
+                      className="hidden"
+                      accept="image/jpeg, image/png, image/webp"
+                      disabled={loading.formulario || loading.agregandoFotos}
+                    />
+                  </label>
+                </div>
+              )}
+              <p className="mt-1 text-xs text-gray-500">Esta imagen se usará como marca de agua en todas las fotos subidas</p>
+              
+              {/* Configuración de la marca de agua */}
+              {marcaDeAgua && (
+                <div className="mt-4 space-y-4">
+                  <div>
+                    <label className="block mb-2 text-sm font-medium text-gray-900">Opacidad de la marca de agua</label>
+                    <div className="flex items-center gap-4">
+                      <input
+                        type="range"
+                        min="10"
+                        max="100"
+                        value={opacidadMarcaAgua}
+                        onChange={(e) => setOpacidadMarcaAgua(parseInt(e.target.value))}
+                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                      />
+                      <span className="text-sm font-medium text-gray-900 w-12">{opacidadMarcaAgua}%</span>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block mb-2 text-sm font-medium text-gray-900">Posición de la marca de agua</label>
+                    <select
+                      value={posicionMarcaAgua}
+                      onChange={(e) => setPosicionMarcaAgua(e.target.value)}
+                      className="w-full p-2 border border-gray-300 rounded-lg bg-white text-gray-900"
+                    >
+                      <option value="centro">Centro</option>
+                      <option value="esquina-superior-izquierda">Esquina superior izquierda</option>
+                      <option value="esquina-superior-derecha">Esquina superior derecha</option>
+                      <option value="esquina-inferior-izquierda">Esquina inferior izquierda</option>
+                      <option value="esquina-inferior-derecha">Esquina inferior derecha</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
               <div>
                 <label className="block mb-2 text-sm font-medium text-gray-900">Precio por imagen ($)</label>
@@ -543,132 +875,62 @@ export default function Panel() {
                 <h3 className="text-lg font-medium text-gray-900">
                   Fotos a subir ({fotosPorSubir.length})
                 </h3>
-                <button
-                  onClick={agregarNuevoParDeFotos}
-                  disabled={loading.formulario || loading.agregandoFotos}
-                  className="flex items-center gap-2 text-sm bg-black-100 hover:bg-black-200 px-3 py-1.5 rounded-lg transition-colors"
-                >
-                  <FiPlus />
-                  <span>Nuevo</span>
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={loading.formulario || loading.agregandoFotos}
+                    className="flex items-center gap-2 text-sm bg-black-100 hover:bg-black-200 px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    <FiPlus />
+                    <span>Agregar fotos</span>
+                  </button>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={(e) => handleFileSelect(e.target.files)}
+                    className="hidden"
+                    accept="image/jpeg, image/png, image/webp"
+                    multiple
+                    disabled={loading.formulario || loading.agregandoFotos}
+                  />
+                </div>
               </div>
 
               {fotosPorSubir.length === 0 ? (
-                <div className="bg-gray-50 p-6 rounded-lg border border-dashed border-gray-300 text-center">
+                <div 
+                  className={`bg-gray-50 p-6 rounded-lg border-2 border-dashed ${dragActive ? 'border-black bg-gray-100' : 'border-gray-300 hover:border-black hover:bg-gray-50'} text-center`}
+                  onDragEnter={handleDrag}
+                  onDragLeave={handleDragLeave}
+                  onDragOver={handleDrag}
+                  onDrop={handleDrop}
+                >
                   <FiImage className="mx-auto text-gray-400 text-2xl mb-2" />
-                  <p className="text-gray-700 font-medium">No hay fotos para subir</p>
-                  <p className="text-sm text-gray-500 mt-1">Agrega al menos un par de fotos (portada + original)</p>
+                  <p className="text-gray-700 font-medium">Arrastra y suelta tus fotos aquí</p>
+                  <p className="text-sm text-gray-500 mt-1">o haz clic en "Agregar fotos" para seleccionarlas</p>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                   {fotosPorSubir.map((foto, index) => (
-                    <div key={index} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-                      <div className="flex justify-between items-start mb-3">
-                        <h4 className="font-medium text-gray-900 flex items-center gap-2">
-                          <FiFolder className="text-gray-500" />
-                          <span>Foto #{index + 1}</span>
-                          {(foto.portada && foto.original) && (
-                            <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full flex items-center gap-1">
-                              <FiCheck size={12} />
-                              <span>Lista</span>
-                            </span>
-                          )}
-                        </h4>
-                        <button
-                          onClick={() => removeFotoPorSubir(index)}
-                          className="text-red-500 hover:text-red-700"
-                          disabled={loading.formulario || loading.agregandoFotos}
-                        >
-                          <FiX />
-                        </button>
+                    <div key={index} className="relative group">
+                      <div className="aspect-square rounded-lg overflow-hidden shadow-sm border border-gray-300 bg-gray-100">
+                        <ImagePreview
+                          src={foto.preview}
+                          alt={`Preview foto ${index + 1}`}
+                          className="w-full h-full object-cover"
+                        />
                       </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block mb-2 text-sm font-medium text-gray-900">
-                            Foto de Portada (con marca de agua)
-                          </label>
-                          {foto.portada ? (
-                            <div className="relative w-full rounded-lg overflow-hidden shadow-sm border border-gray-300 min-h-[200px] flex items-center justify-center bg-gray-100">
-                              <ImagePreview
-                                src={foto.portada.preview}
-                                alt="Preview portada"
-                                className="max-h-full max-w-full object-contain"
-                              />
-                              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-2">
-                                <p className="text-xs text-white truncate font-medium">{foto.portada.name}</p>
-                                <p className="text-xs text-gray-300">{foto.portada.size} • {foto.portada.type.split('/')[1].toUpperCase()}</p>
-                              </div>
-                            </div>
-                          ) : (
-                            <div 
-                              className={`relative border-2 border-dashed rounded-lg transition-all ${dragActivePortada[index] ? 'border-black bg-gray-100' : 'border-gray-400 hover:border-black hover:bg-gray-50'}`}
-                              onDragEnter={(e) => handleDrag(e, 'portada', index)}
-                              onDragLeave={(e) => handleDragLeave(e, 'portada', index)}
-                              onDragOver={(e) => handleDrag(e, 'portada', index)}
-                              onDrop={(e) => handleDrop(e, 'portada', index)}
-                            >
-                              <label className="flex flex-col items-center justify-center w-full h-32 cursor-pointer">
-                                <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                                  <FiImage className="mb-2 text-gray-700 text-2xl" />
-                                  <p className="text-sm text-gray-900 font-medium">Arrastra o selecciona la portada</p>
-                                  <p className="text-xs text-gray-600 mt-1">JPEG, PNG, WEBP</p>
-                                </div>
-                                <input
-                                  type="file"
-                                  onChange={(e) => handlePortadaChange(e, index)}
-                                  className="hidden"
-                                  accept="image/jpeg, image/png, image/webp"
-                                  disabled={loading.formulario || loading.agregandoFotos}
-                                  ref={portadaInputRef}
-                                />
-                              </label>
-                            </div>
-                          )}
-                        </div>
-
-                        <div>
-                          <label className="block mb-2 text-sm font-medium text-gray-900">
-                            Foto Original (sin marca de agua)
-                          </label>
-                          {foto.original ? (
-                            <div className="relative w-full rounded-lg overflow-hidden shadow-sm border border-gray-300 min-h-[200px] flex items-center justify-center bg-gray-100">
-                              <ImagePreview
-                                src={foto.original.preview}
-                                alt="Preview original"
-                                className="max-h-full max-w-full object-contain"
-                              />
-                              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-2">
-                                <p className="text-xs text-white truncate font-medium">{foto.original.name}</p>
-                                <p className="text-xs text-gray-300">{foto.original.size} • {foto.original.type.split('/')[1].toUpperCase()}</p>
-                              </div>
-                            </div>
-                          ) : (
-                            <div 
-                              className={`relative border-2 border-dashed rounded-lg transition-all ${dragActiveOriginal[index] ? 'border-black bg-gray-100' : 'border-gray-400 hover:border-black hover:bg-gray-50'}`}
-                              onDragEnter={(e) => handleDrag(e, 'original', index)}
-                              onDragLeave={(e) => handleDragLeave(e, 'original', index)}
-                              onDragOver={(e) => handleDrag(e, 'original', index)}
-                              onDrop={(e) => handleDrop(e, 'original', index)}
-                            >
-                              <label className="flex flex-col items-center justify-center w-full h-32 cursor-pointer">
-                                <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                                  <FiImage className="mb-2 text-gray-700 text-2xl" />
-                                  <p className="text-sm text-gray-900 font-medium">Arrastra o selecciona la original</p>
-                                  <p className="text-xs text-gray-600 mt-1">JPEG, PNG, WEBP</p>
-                                </div>
-                                <input
-                                  type="file"
-                                  onChange={(e) => handleOriginalChange(e, index)}
-                                  className="hidden"
-                                  accept="image/jpeg, image/png, image/webp"
-                                  disabled={loading.formulario || loading.agregandoFotos}
-                                  ref={originalInputRef}
-                                />
-                              </label>
-                            </div>
-                          )}
-                        </div>
+                      <div className="absolute top-0 left-0 right-0 bg-gradient-to-b from-black/60 to-transparent p-2">
+                        <p className="text-xs text-white truncate">{foto.name}</p>
+                      </div>
+                      <button
+                        onClick={() => removeFotoPorSubir(index)}
+                        className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                        disabled={loading.formulario || loading.agregandoFotos}
+                      >
+                        <FiX size={14} />
+                      </button>
+                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2">
+                        <p className="text-xs text-white">{foto.size}</p>
                       </div>
                     </div>
                   ))}
@@ -695,7 +957,7 @@ export default function Panel() {
               <div className="space-y-4">
                 <button
                   onClick={() => agregarFotosAEvento(eventoActual.id)}
-                  disabled={loading.agregandoFotos || fotosPorSubir.length === 0 || fotosPorSubir.some(f => !f.portada || !f.original)}
+                  disabled={loading.agregandoFotos || fotosPorSubir.length === 0 || !marcaDeAgua}
                   className="w-full flex justify-center items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 transition-colors disabled:bg-gray-400 font-bold rounded-lg text-lg shadow-md hover:shadow-lg"
                 >
                   {loading.agregandoFotos ? (
@@ -725,7 +987,7 @@ export default function Panel() {
             ) : (
               <button
                 onClick={crearEvento}
-                disabled={loading.formulario || !nombre || !fecha || fotosPorSubir.length === 0 || fotosPorSubir.some(f => !f.portada || !f.original)}
+                disabled={loading.formulario || !nombre || !fecha || fotosPorSubir.length === 0 || !marcaDeAgua}
                 className="w-full flex justify-center items-center gap-2 bg-black hover:bg-gray-800 text-white py-3 px-4 transition-colors disabled:bg-gray-400 font-bold rounded-lg text-lg shadow-md hover:shadow-lg"
               >
                 {loading.formulario ? (
@@ -773,23 +1035,34 @@ export default function Panel() {
                 {eventos.map((evento) => (
                   <article key={evento.id} className="py-6">
                     <div className="flex justify-between items-start">
-                      <div>
-                        <h3 className="font-bold text-lg text-gray-900">{evento.nombre}</h3>
-                        <p className="text-sm text-gray-700 mt-1">
-                          {new Date(evento.fecha).toLocaleDateString('es-ES', {
-                            weekday: 'long',
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric'
-                          })}
-                        </p>
-                        {evento.fotos?.length > 0 && (
-                          <p className="text-sm mt-2">
-                            <span className="text-gray-700">Valor total:</span>
-                            <span className="font-bold ml-1 text-gray-900">${calcularPrecioTotal(evento.fotos).toFixed(2)}</span>
-                            <span className="text-xs text-gray-500 ml-2">({evento.fotos.length} fotos)</span>
-                          </p>
+                      <div className="flex gap-4">
+                        {evento.portada_url && (
+                          <div className="flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border border-gray-300">
+                            <ImagePreview
+                              src={evento.portada_url}
+                              alt={`Portada de ${evento.nombre}`}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
                         )}
+                        <div>
+                          <h3 className="font-bold text-lg text-gray-900">{evento.nombre}</h3>
+                          <p className="text-sm text-gray-700 mt-1">
+                            {new Date(evento.fecha).toLocaleDateString('es-ES', {
+                              weekday: 'long',
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric'
+                            })}
+                          </p>
+                          {evento.fotos?.length > 0 && (
+                            <p className="text-sm mt-2">
+                              <span className="text-gray-700">Valor total:</span>
+                              <span className="font-bold ml-1 text-gray-900">${calcularPrecioTotal(evento.fotos).toFixed(2)}</span>
+                              <span className="text-xs text-gray-500 ml-2">({evento.fotos.length} fotos)</span>
+                            </p>
+                          )}
+                        </div>
                       </div>
                       <div className="flex gap-2">
                         <button
