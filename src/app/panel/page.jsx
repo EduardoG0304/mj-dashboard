@@ -579,49 +579,64 @@ export default function Panel() {
   }
 
   const subirTodasLasFotos = async (eventoId) => {
-    try {
-      let fotosSubidas = 0
-      const totalFotos = fotosPorSubir.length
+  try {
+    let fotosSubidas = 0
+    const totalFotos = fotosPorSubir.length
+    
+    for (const [index, foto] of fotosPorSubir.entries()) {
+      const timestamp = Date.now()
+      const nombreArchivo = `${timestamp}-${foto.file.name.replace(/\s+/g, '-')}`
+      const rutaOriginal = `eventos/${eventoId}/originales/${nombreArchivo}`
+      const rutaProcesado = `eventos/${eventoId}/procesadas/${nombreArchivo}`
+
+      // 1. Subir la imagen original
+      const { error: uploadOriginalError } = await supabase.storage
+        .from('fotos_eventos')
+        .upload(rutaOriginal, foto.file)
+
+      if (uploadOriginalError) throw uploadOriginalError
+
+      // 2. Procesar y subir la imagen con marca de agua
+      const imagenConMarca = await agregarMarcaDeAgua(foto.file)
       
-      for (const [index, foto] of fotosPorSubir.entries()) {
-        const timestamp = Date.now()
-        const nombreArchivo = `${timestamp}-${foto.file.name.replace(/\s+/g, '-')}`
-        const rutaOriginal = `eventos/${eventoId}/${nombreArchivo}`
+      const { error: uploadProcesadoError } = await supabase.storage
+        .from('fotos_eventos')
+        .upload(rutaProcesado, imagenConMarca)
 
-        // Aplicar marca de agua a la imagen
-        const imagenConMarca = await agregarMarcaDeAgua(foto.file)
-        
-        const { error: uploadError } = await supabase.storage
-          .from('fotos_eventos')
-          .upload(rutaOriginal, imagenConMarca)
+      if (uploadProcesadoError) throw uploadProcesadoError
 
-        if (uploadError) throw uploadError
+      // 3. Obtener URLs públicas
+      const { data: { publicUrl: urlOriginal } } = supabase.storage
+        .from('fotos_eventos')
+        .getPublicUrl(rutaOriginal)
 
-        const { data: { publicUrl } } = supabase.storage
-          .from('fotos_eventos')
-          .getPublicUrl(rutaOriginal)
+      const { data: { publicUrl: urlProcesado } } = supabase.storage
+        .from('fotos_eventos')
+        .getPublicUrl(rutaProcesado)
 
-        const { error: dbError } = await supabase
-          .from('fotos')
-          .insert({
-            evento_id: eventoId,
-            url: publicUrl,
-            precio: precioImagen,
-            nombre: nombreArchivo,
-            ruta_original: rutaOriginal
-          })
+      // 4. Guardar en la base de datos
+      const { error: dbError } = await supabase
+        .from('fotos')
+        .insert({
+          evento_id: eventoId,
+          url: urlProcesado, // Mostrar versión con marca de agua
+          precio: precioImagen,
+          nombre: foto.file.name,
+          ruta_procesada: rutaProcesado,
+          ruta_original: rutaOriginal
+        })
 
-        if (dbError) throw dbError
+      if (dbError) throw dbError
 
-        fotosSubidas++
-        setProgresoSubida(Math.round((fotosSubidas / totalFotos) * 100))
-      }
-    } catch (err) {
-      throw new Error('Error al subir imágenes: ' + err.message)
-    } finally {
-      setProgresoSubida(0)
+      fotosSubidas++
+      setProgresoSubida(Math.round((fotosSubidas / totalFotos) * 100))
     }
+  } catch (err) {
+    throw new Error('Error al subir imágenes: ' + err.message)
+  } finally {
+    setProgresoSubida(0)
   }
+}
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
