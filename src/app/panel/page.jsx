@@ -911,7 +911,6 @@ export default function Panel() {
                         value={nombre}
                         onChange={(e) => setNombre(e.target.value)}
                         className="w-full p-3 border border-gray-300 focus:ring-2 focus:ring-black focus:border-black rounded-lg bg-white font-medium placeholder-gray-500 text-gray-900"
-                        placeholder="Ej: Boda de Ana y Juan"
                         disabled={loading.formulario}
                       />
                     </div>
